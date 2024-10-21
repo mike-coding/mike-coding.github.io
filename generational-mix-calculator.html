@@ -86,26 +86,30 @@
         const influence = [];
         for (let y of years) {
             let value = 0;
-            if (y >= generation.start && y <= generation.end) {
-                const rampUpStart = generation.start;
-                const rampUpEnd = generation.start + 1;
-                const plateauStart = generation.start + 2;
-                const plateauEnd = generation.start + 5;
-                const rampDownStart = generation.start + 6;
-                const rampDownEnd = generation.start + 7;
 
-                if (y === rampUpStart) {
+            if (y >= generation.start && y <= generation.end) {
+                // Define ramp-up, plateau, ramp-down periods
+                const totalSpan = generation.end - generation.start + 1; // inclusive
+                const rampUpYears = 3;
+                const rampDownYears = 3;
+                const plateauYears = totalSpan - rampUpYears - rampDownYears;
+
+                const rampUpEnd = generation.start + rampUpYears - 1;
+                const plateauEnd = rampUpEnd + plateauYears;
+                const rampDownEnd = generation.end;
+
+                if (y >= generation.start && y <= rampUpEnd) {
+                    // Ramp-Up: 0% to 50%
+                    value = ((y - generation.start + 1) / rampUpYears) * 50;
+                } else if (y > rampUpEnd && y <= plateauEnd) {
+                    // Plateau: 50%
                     value = 50;
-                } else if (y === rampUpEnd) {
-                    value = 100;
-                } else if (y >= plateauStart && y <= plateauEnd) {
-                    value = 100;
-                } else if (y === rampDownStart) {
-                    value = 50;
-                } else if (y === rampDownEnd) {
-                    value = 0;
+                } else if (y > plateauEnd && y <= rampDownEnd) {
+                    // Ramp-Down: 50% to 0%
+                    value = ((generation.end - y + 1) / rampDownYears) * 50;
                 }
             }
+
             influence.push(value);
         }
         return influence;
