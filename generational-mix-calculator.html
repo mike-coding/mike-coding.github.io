@@ -6,13 +6,13 @@
     <!-- Include Bootstrap CSS for styling -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
     <!-- Include Chart.js library -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
         body {
             background-color: #f8f9fa;
         }
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin-top: 50px;
         }
         #result-section {
@@ -71,6 +71,7 @@
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
 
 <script>
+    // Define the generations with their start and end years
     const generations = [
         { name: 'Silent Generation', start: 1928, end: 1945, color: 'rgba(108, 117, 125, 0.5)' },
         { name: 'Baby Boomers', start: 1946, end: 1964, color: 'rgba(0, 123, 255, 0.5)' },
@@ -80,12 +81,53 @@
         { name: 'Generation Alpha', start: 2013, end: 2025, color: 'rgba(232, 62, 140, 0.5)' },
     ];
 
-    // Define plateau regions for each generation (core years with 100% influence)
-    generations.forEach(gen => {
-        const span = gen.end - gen.start;
-        gen.plateauStart = gen.start + span / 3;
-        gen.plateauEnd = gen.end - span / 3;
-    });
+    // Function to calculate influence per generation
+    function calculateInfluence(generation, years) {
+        const influence = [];
+        for (let y of years) {
+            let value = 0;
+            if (y >= generation.start && y <= generation.end) {
+                const rampUpStart = generation.start;
+                const rampUpEnd = generation.start + 1;
+                const plateauStart = generation.start + 2;
+                const plateauEnd = generation.start + 5;
+                const rampDownStart = generation.start + 6;
+                const rampDownEnd = generation.start + 7;
+
+                if (y === rampUpStart) {
+                    value = 50;
+                } else if (y === rampUpEnd) {
+                    value = 100;
+                } else if (y >= plateauStart && y <= plateauEnd) {
+                    value = 100;
+                } else if (y === rampDownStart) {
+                    value = 50;
+                } else if (y === rampDownEnd) {
+                    value = 0;
+                }
+            }
+            influence.push(value);
+        }
+        return influence;
+    }
+
+    // Function to normalize influences so that sum per year is 100%
+    function normalizeInfluences(generations, years) {
+        const rawInfluences = generations.map(gen => calculateInfluence(gen, years));
+        const normalizedInfluences = generations.map(() => []);
+
+        for (let i = 0; i < years.length; i++) {
+            let total = 0;
+            for (let gen = 0; gen < generations.length; gen++) {
+                total += rawInfluences[gen][i];
+            }
+            for (let gen = 0; gen < generations.length; gen++) {
+                const normalized = total > 0 ? (rawInfluences[gen][i] / total) * 100 : 0;
+                normalizedInfluences[gen].push(normalized);
+            }
+        }
+        return normalizedInfluences;
+    }
 
     const years = [];
     for (let y = 1900; y <= 2030; y++) {
@@ -96,7 +138,8 @@
 
     document.getElementById('year-form').addEventListener('submit', function(e) {
         e.preventDefault();
-        const birthYear = parseInt(document.getElementById('birthYear').value);
+        const birthYearInput = document.getElementById('birthYear').value;
+        const birthYear = parseInt(birthYearInput);
         if (isNaN(birthYear) || birthYear < 1900 || birthYear > 2030) {
             alert('Please enter a valid year between 1900 and 2030.');
             return;
@@ -115,43 +158,13 @@
     });
 
     function computeGenerationalMix(birthYear) {
-        const totalInfluence = [];
+        const normalizedInfluences = normalizeInfluences(generations, years);
         const datasets = [];
 
-        // Initialize totalInfluence array
-        years.forEach(() => totalInfluence.push(0));
-
-        generations.forEach(gen => {
-            const influence = [];
-            years.forEach((year, index) => {
-                let value = 0;
-
-                if (year >= gen.start && year <= gen.end) {
-                    if (year < gen.plateauStart) {
-                        // Linear increase
-                        value = (year - gen.start) / (gen.plateauStart - gen.start);
-                    } else if (year <= gen.plateauEnd) {
-                        // Plateau
-                        value = 1;
-                    } else {
-                        // Linear decrease
-                        value = (gen.end - year) / (gen.end - gen.plateauEnd);
-                    }
-                }
-                influence.push(value);
-                totalInfluence[index] += value;
-            });
-            gen.influence = influence;
-        });
-
-        // Compute percentages
-        generations.forEach(gen => {
-            gen.percentage = gen.influence.map((value, index) => {
-                return totalInfluence[index] > 0 ? (value / totalInfluence[index]) * 100 : 0;
-            });
+        generations.forEach((gen, idx) => {
             datasets.push({
                 label: gen.name,
-                data: gen.percentage,
+                data: normalizedInfluences[idx],
                 borderColor: gen.color.replace('0.5', '1'),
                 backgroundColor: gen.color,
                 fill: true,
@@ -160,30 +173,43 @@
             });
         });
 
-        // Compute user's generational mix
+        // Identify the generation(s) of the birth year
         const userIndex = years.indexOf(birthYear);
-        const userMix = {};
-        generations.forEach(gen => {
-            userMix[gen.name] = gen.percentage[userIndex];
+        let dominantGenerations = [];
+        generations.forEach((gen, idx) => {
+            if (normalizedInfluences[idx][userIndex] > 0) {
+                dominantGenerations.push(idx);
+            }
         });
 
-        // Round percentages and filter out values <= 0%
-        const breakdownEntries = Object.entries(userMix).map(([genName, percentage]) => {
-            const roundedPercentage = Math.round(percentage);
-            return { genName, percentage: roundedPercentage };
-        }).filter(entry => entry.percentage > 0);
+        // Prepare data for the marker
+        const markerDatasets = dominantGenerations.map(idx => {
+            return {
+                label: 'Your Birth Year',
+                data: years.map((y, i) => (y === birthYear ? normalizedInfluences[idx][i] : null)),
+                backgroundColor: 'red',
+                borderColor: 'red',
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                type: 'scatter',
+                showLine: false,
+            };
+        });
 
-        // Plot the generation curves
+        // Combine all datasets
+        const allDatasets = datasets.concat(markerDatasets);
+
+        // Create the chart
         const ctx = document.getElementById('generationChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: years,
-                datasets: datasets,
+                datasets: allDatasets,
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 interaction: {
                     intersect: false,
                     mode: 'index',
@@ -195,6 +221,9 @@
                             display: true,
                             text: 'Year',
                         },
+                        ticks: {
+                            maxTicksLimit: 20,
+                        },
                     },
                     y: {
                         display: true,
@@ -204,55 +233,54 @@
                         },
                         min: 0,
                         max: 100,
+                        ticks: {
+                            stepSize: 10,
+                        },
                     },
                 },
                 plugins: {
                     legend: {
                         position: 'bottom',
+                        labels: {
+                            filter: function(item, chart) {
+                                // Hide the 'Your Birth Year' label duplicates
+                                return item.text !== 'Your Birth Year' || !item.hidden;
+                            }
+                        }
+                    },
+                    tooltip: {
+                        enabled: true,
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                if (context.dataset.label === 'Your Birth Year') {
+                                    return `You (${birthYear}): ${context.parsed.y}%`;
+                                }
+                                return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+                            }
+                        }
                     },
                 },
             },
         });
 
-        // Add point marker for user's birth year
-        addBirthYearMarker(birthYear, userIndex, datasets);
-
         // Display the breakdown
-        const breakdownList = document.getElementById('breakdown-list');
-        breakdownList.innerHTML = '';
-        breakdownEntries.forEach(entry => {
-            const listItem = document.createElement('li');
-            listItem.textContent = `${entry.genName}: ${entry.percentage}%`;
-            breakdownList.appendChild(listItem);
-        });
-    }
-
-    function addBirthYearMarker(birthYear, userIndex, datasets) {
-        // Create a dataset for the birth year marker
-        const birthYearData = [];
-        years.forEach((year, index) => {
-            if (year === birthYear) {
-                birthYearData.push(100);
-            } else {
-                birthYearData.push(null);
+        const userMix = {};
+        generations.forEach((gen, idx) => {
+            const percentage = normalizedInfluences[idx][userIndex];
+            if (percentage > 0.4) { // Considering floating point precision
+                userMix[gen.name] = Math.round(percentage);
             }
         });
 
-        // Add the birth year marker dataset
-        chart.data.datasets.push({
-            label: 'Your Birth Year',
-            data: birthYearData,
-            borderColor: 'red',
-            backgroundColor: 'red',
-            pointRadius: 8,
-            pointHoverRadius: 10,
-            type: 'scatter',
-            showLine: false,
-            fill: false,
+        const breakdownList = document.getElementById('breakdown-list');
+        breakdownList.innerHTML = '';
+        Object.keys(userMix).forEach(genName => {
+            const listItem = document.createElement('li');
+            listItem.textContent = `${genName}: ${userMix[genName]}%`;
+            breakdownList.appendChild(listItem);
         });
-
-        // Update the chart to display the new dataset
-        chart.update();
     }
 </script>
 </body>
