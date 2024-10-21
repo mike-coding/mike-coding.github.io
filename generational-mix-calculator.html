@@ -91,7 +91,7 @@
     // Pre-compute centers and sigmas
     generations.forEach(gen => {
         gen.center = (gen.start + gen.end) / 2;
-        gen.sigma = (gen.end - gen.start) / 2;
+        gen.sigma = (gen.end - gen.start) / 2.8;
     });
 
     const years = [];
@@ -135,11 +135,10 @@
                 const generationCenter = gen.start + halfDist;
                 const absoluteDist = Math.abs(year - generationCenter);
 
-                if (absoluteDist <= halfDist * 2) {
-                    const rampProgress = Math.max(0, absoluteDist);
-                    const traversalDist = halfDist * 2;
-                    value = (traversalDist - rampProgress) / traversalDist;
-                }
+                // Gaussian function for smooth influence
+                const sigma = gen.sigma;
+                value = Math.exp(-0.5 * Math.pow((year - gen.center) / sigma, 2));
+
                 influence.push(value);
                 totalInfluence[index] += value;
             });
@@ -148,7 +147,11 @@
 
         // Compute percentages
         generations.forEach(gen => {
-            gen.percentage = gen.influence.map((value, index) => (value / totalInfluence[index]) * 100);
+            gen.percentage = gen.influence.map((value, index) => {
+                // Prevent division by zero
+                if (totalInfluence[index] === 0) return 0;
+                return (value / totalInfluence[index]) * 100;
+            });
             // Transform data to {x, y}
             const data = years.map((year, index) => ({x: year, y: gen.percentage[index]}));
             datasets.push({
@@ -159,6 +162,7 @@
                 fill: true,
                 pointRadius: 0,
                 borderWidth: 2,
+                tension: 0.6, // Increased tension for smoother lines
             });
         });
 
@@ -194,7 +198,7 @@
                     x: {
                         type: 'linear',
                         position: 'bottom',
-                        min: 1900,
+                        min: 1920,
                         max: 2030,
                         title: {
                             display: true,
@@ -222,20 +226,20 @@
                         annotations: {
                             birthYearLine: {
                                 type: 'line',
-                                scaleID: 'x',
-                                value: birthYear,
-                                borderColor: 'red',
-                                borderWidth: 2,
+                                xMin: birthYear,
+                                xMax: birthYear,
+                                borderColor: 'black',
+                                borderWidth: 3,
                                 label: {
                                     enabled: true,
                                     content: 'You (' + birthYear + ')',
-                                    position: 'start',
-                                    backgroundColor: 'rgba(255, 0, 0, 0.7)',
+                                    position: 'end',
+                                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
                                     color: 'white',
                                     font: {
                                         weight: 'bold',
                                     },
-                                    yAdjust: -10, // Adjusts label vertically to avoid overlap
+                                    yAdjust:8, // Adjusts label vertically to avoid overlap
                                 },
                             },
                         },
