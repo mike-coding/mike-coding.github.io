@@ -7,8 +7,6 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
     <!-- Include Chart.js library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
-    <!-- Include Chart.js Annotation Plugin -->
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.1.1"></script>
     <style>
         body {
             background-color: #f8f9fa;
@@ -82,11 +80,11 @@
         { name: 'Generation Alpha', start: 2013, end: 2025, color: 'rgba(232, 62, 140, 0.5)' },
     ];
 
-    // Pre-compute centers and sigmas
+    // Define plateau regions for each generation (core years with 100% influence)
     generations.forEach(gen => {
-        gen.center = (gen.start + gen.end) / 2;
-        // Adjust sigma to make curves narrower
-        gen.sigma = (gen.end - gen.start) / 6; // Smaller sigma for narrower curves
+        const span = gen.end - gen.start;
+        gen.plateauStart = gen.start + span / 3;
+        gen.plateauEnd = gen.end - span / 3;
     });
 
     const years = [];
@@ -126,8 +124,20 @@
         generations.forEach(gen => {
             const influence = [];
             years.forEach((year, index) => {
-                const exponent = -Math.pow(year - gen.center, 2) / (2 * Math.pow(gen.sigma, 2));
-                const value = Math.exp(exponent);
+                let value = 0;
+
+                if (year >= gen.start && year <= gen.end) {
+                    if (year < gen.plateauStart) {
+                        // Linear increase
+                        value = (year - gen.start) / (gen.plateauStart - gen.start);
+                    } else if (year <= gen.plateauEnd) {
+                        // Plateau
+                        value = 1;
+                    } else {
+                        // Linear decrease
+                        value = (gen.end - year) / (gen.end - gen.plateauEnd);
+                    }
+                }
                 influence.push(value);
                 totalInfluence[index] += value;
             });
@@ -136,7 +146,9 @@
 
         // Compute percentages
         generations.forEach(gen => {
-            gen.percentage = gen.influence.map((value, index) => (value / totalInfluence[index]) * 100);
+            gen.percentage = gen.influence.map((value, index) => {
+                return totalInfluence[index] > 0 ? (value / totalInfluence[index]) * 100 : 0;
+            });
             datasets.push({
                 label: gen.name,
                 data: gen.percentage,
@@ -198,35 +210,12 @@
                     legend: {
                         position: 'bottom',
                     },
-                    annotation: {
-                        annotations: {
-                            line1: {
-                                type: 'line',
-                                xMin: birthYear,
-                                xMax: birthYear,
-                                borderColor: 'black',
-                                borderWidth: 2,
-                                label: {
-                                    content: 'You (' + birthYear + ')',
-                                    enabled: true,
-                                    position: 'start',
-                                    backgroundColor: 'rgba(0,0,0,0.7)',
-                                    color: 'white',
-                                    font: {
-                                        weight: 'bold',
-                                    },
-                                },
-                            },
-                        },
-                    },
-                    tooltip: {
-                        enabled: true,
-                        mode: 'index',
-                        intersect: false,
-                    },
                 },
             },
         });
+
+        // Add point marker for user's birth year
+        addBirthYearMarker(birthYear, userIndex, datasets);
 
         // Display the breakdown
         const breakdownList = document.getElementById('breakdown-list');
@@ -236,6 +225,34 @@
             listItem.textContent = `${entry.genName}: ${entry.percentage}%`;
             breakdownList.appendChild(listItem);
         });
+    }
+
+    function addBirthYearMarker(birthYear, userIndex, datasets) {
+        // Create a dataset for the birth year marker
+        const birthYearData = [];
+        years.forEach((year, index) => {
+            if (year === birthYear) {
+                birthYearData.push(100);
+            } else {
+                birthYearData.push(null);
+            }
+        });
+
+        // Add the birth year marker dataset
+        chart.data.datasets.push({
+            label: 'Your Birth Year',
+            data: birthYearData,
+            borderColor: 'red',
+            backgroundColor: 'red',
+            pointRadius: 8,
+            pointHoverRadius: 10,
+            type: 'scatter',
+            showLine: false,
+            fill: false,
+        });
+
+        // Update the chart to display the new dataset
+        chart.update();
     }
 </script>
 </body>
