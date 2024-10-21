@@ -6,9 +6,9 @@
     <!-- Include Bootstrap CSS for styling -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
     <!-- Include Chart.js library -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
     <!-- Include Chart.js Annotation Plugin -->
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.1.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.1.1"></script>
     <style>
         body {
             background-color: #f8f9fa;
@@ -85,7 +85,8 @@
     // Pre-compute centers and sigmas
     generations.forEach(gen => {
         gen.center = (gen.start + gen.end) / 2;
-        gen.sigma = (gen.end - gen.start) / 2;
+        // Adjust sigma to make curves narrower
+        gen.sigma = (gen.end - gen.start) / 6; // Smaller sigma for narrower curves
     });
 
     const years = [];
@@ -125,7 +126,8 @@
         generations.forEach(gen => {
             const influence = [];
             years.forEach((year, index) => {
-                const value = Math.exp(-Math.pow(year - gen.center, 2) / (2 * Math.pow(gen.sigma, 2)));
+                const exponent = -Math.pow(year - gen.center, 2) / (2 * Math.pow(gen.sigma, 2));
+                const value = Math.exp(exponent);
                 influence.push(value);
                 totalInfluence[index] += value;
             });
@@ -200,13 +202,13 @@
                         annotations: {
                             line1: {
                                 type: 'line',
-                                scaleID: 'x',
-                                value: birthYear,
+                                xMin: birthYear,
+                                xMax: birthYear,
                                 borderColor: 'black',
                                 borderWidth: 2,
                                 label: {
-                                    enabled: true,
                                     content: 'You (' + birthYear + ')',
+                                    enabled: true,
                                     position: 'start',
                                     backgroundColor: 'rgba(0,0,0,0.7)',
                                     color: 'white',
@@ -216,6 +218,11 @@
                                 },
                             },
                         },
+                    },
+                    tooltip: {
+                        enabled: true,
+                        mode: 'index',
+                        intersect: false,
                     },
                 },
             },
