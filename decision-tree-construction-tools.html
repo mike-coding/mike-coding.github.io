@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Decision Tree Construction Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            flex: 1;
+            margin-right: 10px;
+            color: #555;
+        }
+
+        .input-group input[type="number"] {
+            flex: 2;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4761d3;
+            border: none;
+            color: white;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #6f81cf;
+        }
+
+        .result-table {
+            margin-top: 20px;
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .result-table th, .result-table td {
+            border: 1px solid #a0a8cc;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .result-table th {
+            background-color: #4761d3;
+            color: white;
+        }
+
+        .error {
+            color: red;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .child-node {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            position: relative;
+            background-color: #f9f9f9;
+        }
+
+        .child-node h3 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .child-node .remove-child {
+            background-color: #e74c3c;
+            width: 60px;
+            border: none;
+            color: white;
+            border-radius: 3px;
+            cursor: pointer;
+            padding: 5px 15px;
+            font-size: 14px;
+        }
+
+        .child-node .remove-child:hover {
+            background-color: #c0392b;
+        }
+
+        .add-child-btn {
+            background-color: #28a745;
+            margin-top: 10px;
+        }
+
+        .add-child-btn:hover {
+            background-color: #218838;
+        }
+
+        /* Responsive Design for Input Groups */
+        @media (max-width: 600px) {
+            .input-group {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .input-group label {
+                margin-bottom: 5px;
+            }
+
+            .input-group input[type="number"] {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Decision Tree Construction Tool</h1>
+    <div class="container">
+        <!-- Child Nodes Inputs -->
+        <div class="child-nodes">
+            <h2>Input Splits:</h2>
+            <div id="child-nodes-container">
+                <!-- Child nodes will be appended here -->
+            </div>
+            <button class="add-child-btn" onclick="addChildNode()">Add Child Node</button>
+        </div>
+
+        <!-- Calculate Button -->
+        <button onclick="calculateInfoGain()">Calculate Information Gain</button>
+
+        <!-- Error Message -->
+        <div id="error" class="error"></div>
+
+        <!-- Results Table -->
+        <table class="result-table" id="resultsTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Node</th>
+                    <th>n (Total Instances)</th>
+                    <th>+ (Positive Classified)</th>
+                    <th>- (Negative Classified)</th>
+                    <th>H (Entropy)</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+                <!-- Results will be populated here -->
+            </tbody>
+        </table>
+
+        <!-- Information Gain Display -->
+        <div id="infoGainDisplay" style="margin-top: 20px; font-weight: bold; text-align: center;"></div>
+    </div>
+
+    <script>
+        // Function to add a new child node input group
+        function addChildNode() {
+            const container = document.getElementById('child-nodes-container');
+
+            const childDiv = document.createElement('div');
+            childDiv.className = 'child-node';
+
+            const childIndex = container.children.length + 1;
+
+            childDiv.innerHTML = `
+                <h3>Node ${childIndex} <button class="remove-child" onclick="removeChildNode(this)">Drop</button></h3>
+                <div class="input-group">
+                    <label for="child-${childIndex}-positives">Positive Instances (+):</label>
+                    <input type="number" id="child-${childIndex}-positives" class="child-positives" min="0" value="">
+                </div>
+                <div class="input-group">
+                    <label for="child-${childIndex}-negatives">Negative Instances (-):</label>
+                    <input type="number" id="child-${childIndex}-negatives" class="child-negatives" min="0" value="">
+                </div>
+            `;
+
+            container.appendChild(childDiv);
+        }
+
+        // Function to remove a child node input group
+        function removeChildNode(button) {
+            const childDiv = button.parentElement.parentElement;
+            childDiv.remove();
+            updateChildNodeLabels();
+        }
+
+        // Function to update child node labels after removal
+        function updateChildNodeLabels() {
+            const childNodes = document.querySelectorAll('.child-node');
+            childNodes.forEach((child, index) => {
+                const header = child.querySelector('h3');
+                header.innerHTML = `Node ${index + 1} <button class="remove-child" onclick="removeChildNode(this)">Drop</button>`;
+                
+                const labels = child.getElementsByTagName('label');
+                labels[0].setAttribute('for', `child-${index + 1}-positives`);
+                labels[0].innerText = `Positive Instances (+):`;
+                
+                labels[1].setAttribute('for', `child-${index + 1}-negatives`);
+                labels[1].innerText = `Negative Instances (-):`;
+            });
+        }
+
+        // Function to calculate Entropy
+        function calculateEntropy(positives, negatives) {
+            const total = positives + negatives;
+            if (total === 0) return 0;
+
+            const pPlus = positives / total;
+            const pMinus = negatives / total;
+
+            function entropyComponent(p) {
+                if (p === 0) return 0;
+                return p * Math.log2(p);
+            }
+
+            const entropy = - (entropyComponent(pPlus) + entropyComponent(pMinus));
+            return entropy;
+        }
+
+        // Function to calculate Information Gain
+        function calculateInfoGain() {
+            const errorDiv = document.getElementById('error');
+            const resultsTable = document.getElementById('resultsTable');
+            const resultsBody = document.getElementById('resultsBody');
+            const infoGainDisplay = document.getElementById('infoGainDisplay');
+
+            // Get child nodes
+            const childPositives = document.querySelectorAll('.child-positives');
+            const childNegatives = document.querySelectorAll('.child-negatives');
+
+            // Input validation
+            if (childPositives.length === 0 || childNegatives.length === 0) {
+                errorDiv.textContent = "Please add at least one child node.";
+                resultsTable.style.display = "none";
+                infoGainDisplay.innerText = "";
+                return;
+            }
+
+            let totalChildPos = 0;
+            let totalChildNeg = 0;
+
+            let childData = [];
+
+            for (let i = 0; i < childPositives.length; i++) {
+                const pos = parseInt(childPositives[i].value);
+                const neg = parseInt(childNegatives[i].value);
+
+                if (isNaN(pos) || isNaN(neg)) {
+                    errorDiv.textContent = `Please enter valid numbers for all child nodes (Child ${i + 1}).`;
+                    resultsTable.style.display = "none";
+                    infoGainDisplay.innerText = "";
+                    return;
+                }
+
+                if (pos < 0 || neg < 0) {
+                    errorDiv.textContent = `Number of instances in Child Node ${i + 1} cannot be negative.`;
+                    resultsTable.style.display = "none";
+                    infoGainDisplay.innerText = "";
+                    return;
+                }
+
+                totalChildPos += pos;
+                totalChildNeg += neg;
+
+                childData.push({positives: pos, negatives: neg});
+            }
+
+            // Calculate parent node counts by summing child nodes
+            const parentPositives = totalChildPos;
+            const parentNegatives = totalChildNeg;
+
+            const totalParent = parentPositives + parentNegatives;
+
+            if (totalParent === 0) {
+                errorDiv.textContent = "Total number of instances in child nodes must be greater than zero.";
+                resultsTable.style.display = "none";
+                infoGainDisplay.innerText = "";
+                return;
+            }
+
+            // Clear any previous error messages
+            errorDiv.textContent = "";
+
+            // Calculate entropy of parent node
+            const parentEntropy = calculateEntropy(parentPositives, parentNegatives);
+
+            // Calculate entropy for each child node and compute weighted entropy
+            let weightedEntropy = 0;
+
+            childData.forEach(child => {
+                const childTotal = child.positives + child.negatives;
+                const weight = childTotal / totalParent;
+                const childEntropy = calculateEntropy(child.positives, child.negatives);
+                weightedEntropy += weight * childEntropy;
+            });
+
+            // Calculate Information Gain
+            const infoGain = parentEntropy - weightedEntropy;
+
+            // Prepare the results table
+            resultsBody.innerHTML = ''; // Clear previous results
+
+            // Parent Node Row
+            const parentRow = document.createElement('tr');
+            parentRow.innerHTML = `
+                <td>Parent Node</td>
+                <td>${totalParent}</td>
+                <td>${parentPositives}</td>
+                <td>${parentNegatives}</td>
+                <td>${parentEntropy.toFixed(4)} bits</td>
+            `;
+            resultsBody.appendChild(parentRow);
+
+            // Child Nodes Rows
+            childData.forEach((child, index) => {
+                const childRow = document.createElement('tr');
+                const childEntropy = calculateEntropy(child.positives, child.negatives);
+                const childTotal = child.positives + child.negatives;
+
+                childRow.innerHTML = `
+                    <td>Node ${index + 1}</td>
+                    <td>${childTotal}</td>
+                    <td>${child.positives}</td>
+                    <td>${child.negatives}</td>
+                    <td>${childEntropy.toFixed(4)} bits</td>
+                `;
+                resultsBody.appendChild(childRow);
+            });
+
+            // Display the results table
+            resultsTable.style.display = "table";
+
+            // Display Information Gain
+            infoGainDisplay.innerText = `Information Gain (IG) = ${infoGain.toFixed(4)} bits`;
+        }
+
+        // Initialize with one child node by default
+        window.onload = function() {
+            addChildNode();
+        }
+    </script>
+
+</body>
+</html>
+
+
+
