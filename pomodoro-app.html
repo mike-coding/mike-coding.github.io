@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pomodoro Timer</title>
+  <!-- Include Bootstrap CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <style>
+    /* Custom CSS to adjust input width */
+    .input-small {
+      max-width: 80px;
+    }
+    /* Center the form */
+    .center-form {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    /* Card background color */
+    .card-custom {
+      background-color: #f8f9fa;
+    }
+    /* Prevent label wrapping */
+    .no-wrap-label {
+      white-space: nowrap;
+    }
+    /* Add horizontal space between label and input */
+    .input-column {
+      padding-left: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="mt-5 text-center">Pomodoro Timer</h1>
+    <div class="card mt-4 card-custom" id="formContainer">
+      <div class="card-body center-form">
+        <form id="pomodoroForm">
+          <div class="form-group row">
+            <label for="workPeriod" class="col-sm-7 col-form-label no-wrap-label">Work Period (minutes):</label>
+            <div class="col-sm-5 input-column">
+              <input type="number" class="form-control input-small" id="workPeriod" value="25">
+            </div>
+          </div>
+          <div class="form-group row">
+            <label for="shortBreak" class="col-sm-7 col-form-label no-wrap-label">Short Break Period (minutes):</label>
+            <div class="col-sm-5 input-column">
+              <input type="number" class="form-control input-small" id="shortBreak" value="5">
+            </div>
+          </div>
+          <div class="form-group row">
+            <label for="iterations" class="col-sm-7 col-form-label no-wrap-label">Iterations:</label>
+            <div class="col-sm-5 input-column">
+              <input type="number" class="form-control input-small" id="iterations" value="4">
+            </div>
+          </div>
+          <div class="form-group row">
+            <label for="longBreak" class="col-sm-7 col-form-label no-wrap-label">Long Break Period (minutes):</label>
+            <div class="col-sm-5 input-column">
+              <input type="number" class="form-control input-small" id="longBreak" value="25">
+            </div>
+          </div>
+          <div class="text-center">
+            <button type="button" id="startButton" class="btn btn-primary">Start</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="timerDisplay" class="text-center mt-5" style="display:none;">
+      <div class="card card-custom">
+        <div class="card-body">
+          <h2 id="status"></h2>
+          <h3 id="timer"></h3>
+          <button type="button" id="skipButton" class="btn btn-secondary mt-3">Skip Period</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript -->
+  <script>
+    var timerInterval = null;
+
+    document.getElementById('startButton').addEventListener('click', startPomodoro);
+
+    function startPomodoro() {
+      // Hide the entire form container
+      document.getElementById('formContainer').style.display = 'none';
+      // Show the timer display
+      document.getElementById('timerDisplay').style.display = 'block';
+
+      // Get input values
+      var workPeriod = parseInt(document.getElementById('workPeriod').value) * 60; // convert to seconds
+      var shortBreak = parseInt(document.getElementById('shortBreak').value) * 60; // seconds
+      var iterations = parseInt(document.getElementById('iterations').value);
+      var longBreak = parseInt(document.getElementById('longBreak').value) * 60; // seconds
+
+      // Initialize variables
+      var iterationCount = 0;
+      var remainingTime = 0;
+
+      // Clear any existing interval
+      if (timerInterval) {
+        clearInterval(timerInterval);
+      }
+
+      // Function to start a period
+      function startPeriod(periodDuration, periodType) {
+        remainingTime = periodDuration;
+        document.getElementById('status').textContent = periodType;
+        updateTimerDisplay();
+
+        // Clear any existing interval
+        if (timerInterval) {
+          clearInterval(timerInterval);
+        }
+
+        // Start the interval
+        timerInterval = setInterval(function() {
+          remainingTime--;
+          updateTimerDisplay();
+          if (remainingTime <= 0) {
+            clearInterval(timerInterval);
+            playAlarm();
+
+            if (periodType === 'Work') {
+              iterationCount++;
+              if (iterationCount < iterations) {
+                // Start short break
+                startPeriod(shortBreak, 'Break');
+              } else {
+                // Start long break and reset iteration count
+                iterationCount = 0;
+                startPeriod(longBreak, 'Break');
+              }
+            } else {
+              // Break period ended, start work period
+              startPeriod(workPeriod, 'Work');
+            }
+          }
+        }, 1000);
+      }
+
+      // Function to update timer display
+      function updateTimerDisplay() {
+        var minutes = Math.floor(remainingTime / 60);
+        var seconds = remainingTime % 60;
+        document.getElementById('timer').textContent = minutes + ':' + (seconds < 10 ? '0' + seconds : seconds);
+      }
+
+      // Function to play alarm sound
+      function playAlarm() {
+        var times = 3;
+        var interval = 500; // milliseconds
+        var count = 0;
+
+        function playBeep() {
+          var context = new (window.AudioContext || window.webkitAudioContext)();
+          var oscillator = context.createOscillator();
+          var gainNode = context.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(context.destination);
+
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(1000, context.currentTime);
+          oscillator.start(context.currentTime);
+          oscillator.stop(context.currentTime + 0.2);
+
+          gainNode.gain.setValueAtTime(1, context.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.2);
+
+          count++;
+          if (count < times) {
+            setTimeout(playBeep, interval);
+          }
+        }
+
+        playBeep();
+      }
+
+      // Function to skip current period
+      function skipPeriod() {
+        clearInterval(timerInterval);
+        remainingTime = 0;
+        updateTimerDisplay();
+        playAlarm();
+
+        if (document.getElementById('status').textContent === 'Work') {
+          iterationCount++;
+          if (iterationCount < iterations) {
+            // Start short break
+            startPeriod(shortBreak, 'Break');
+          } else {
+            // Start long break and reset iteration count
+            iterationCount = 0;
+            startPeriod(longBreak, 'Break');
+          }
+        } else {
+          // Break period ended, start work period
+          startPeriod(workPeriod, 'Work');
+        }
+      }
+
+      document.getElementById('skipButton').addEventListener('click', skipPeriod);
+
+      // Start the first work period
+      startPeriod(workPeriod, 'Work');
+    }
+  </script>
+</body>
+</html>
